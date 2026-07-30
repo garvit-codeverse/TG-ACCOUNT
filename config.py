@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN        = os.getenv("BOT_TOKEN", "8746962237:AAE2UTwDhsnlbB_U8HQI9QJ0VWX0_HmDtok")
+BOT_TOKEN        = os.getenv("BOT_TOKEN", "8746962237:AAESKxN7MN3Tb_UnvaPTKfJWaBzeeZWB0P0")
 ADMIN_IDS        = list(map(int, os.getenv("ADMIN_IDS", "5416091579").split(",")))
 ADMIN_USERNAME   = os.getenv("ADMIN_USERNAME", "@BOTMAKERGARVIT")
 LOG_CHANNEL_ID   = int(os.getenv("LOG_CHANNEL_ID", "-1003589850886"))
