@@ -8,8 +8,8 @@ from keyboards import user_main_kb, country_list_kb, account_detail_kb, develope
 
 router = Router()
 
-_DEV      = "@EVILTALKS"
-_DEV_LINK = "https://t.me/EVILTALKS"
+_DEV      = "@BOTMAKERGARVIT"
+_DEV_LINK = "https://t.me/BOTMAKERGARVIT"
 
 
 async def banned_check(user_id, obj) -> bool:
