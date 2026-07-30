@@ -190,3 +190,11 @@ async def mark_account_sold(account_id: int, db: AsyncSession):
         acc.is_sold = True
         await db.commit()
     return acc
+async def add_balance(tg_id: int, amount: float, db: AsyncSession):
+    result = await db.execute(select(User).where(User.tg_id == tg_id))
+    user = result.scalar_one_or_none()
+    if user:
+        user.balance = user.balance + amount
+        await db.commit()
+        return user
+    return None
