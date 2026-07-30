@@ -1,44 +1,41 @@
-"""
-payment_checker.py
-==================
-Gmail IMAP se FamePay payment verify karta hai.
-asyncio.run_in_executor use karta hai taaki bot block na ho.
-"""
-
+# utils/payment_checker.py – SIRF AUTO-PAY FIX 🔥
 import imaplib
 import email
 import re
 import os
 import asyncio
 from datetime import datetime, timedelta
+import logging
 
-GMAIL_USER     = os.getenv("GMAIL_USER", "").strip()
+logger = logging.getLogger(__name__)
+
+GMAIL_USER = os.getenv("GMAIL_USER", "").strip()
 GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip().replace(" ", "")
 
+# ── FAMPAY KEYWORDS ──────────────────────────────────────────────
 FAMPAY_KEYWORDS = [
     "fampay", "FamPay", "fam pay",
     "received", "credited", "payment",
     "noreply@fampay.in", "alerts@fampay.in"
 ]
 
-
 def _sync_verify(expected_amount: float, timeout_minutes: int = 15) -> dict:
     """
-    Synchronous Gmail check — runs in thread pool via executor.
-    DO NOT call this directly in async code.
+    Synchronous Gmail check — runs in thread pool.
     """
     if not GMAIL_USER or not GMAIL_PASSWORD:
-        return {"verified": False, "message": "Gmail credentials not set in Railway variables"}
+        return {"verified": False, "message": "❌ Gmail credentials not set in Railway variables"}
 
     try:
-        # Connect to Gmail
+        # ── CONNECT TO GMAIL ──────────────────────────────────────
         mail = imaplib.IMAP4_SSL("imap.gmail.com", 993)
         mail.login(GMAIL_USER, GMAIL_PASSWORD)
         mail.select("inbox")
+        logger.info("✅ Gmail connected")
 
         since = (datetime.now() - timedelta(minutes=timeout_minutes)).strftime("%d-%b-%Y")
 
-        # Search strategies
+        # ── SEARCH QUERIES ────────────────────────────────────────
         search_queries = [
             f'(FROM "fampay.in" SINCE "{since}")',
             f'(SUBJECT "received" SINCE "{since}")',
@@ -56,17 +53,18 @@ def _sync_verify(expected_amount: float, timeout_minutes: int = 15) -> dict:
                 if data and data[0]:
                     for uid in data[0].split():
                         all_ids.add(uid)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Search query failed: {e}")
                 continue
 
         if not all_ids:
             mail.logout()
             return {
                 "verified": False,
-                "message": "No FamePay emails found in last 15 minutes"
+                "message": "❌ No FamPay emails found in last 15 minutes"
             }
 
-        # Check latest emails first (reverse order)
+        # ── CHECK LATEST EMAILS ──────────────────────────────────
         sorted_ids = sorted(list(all_ids), reverse=True)
 
         for num in sorted_ids[:30]:
@@ -75,12 +73,12 @@ def _sync_verify(expected_amount: float, timeout_minutes: int = 15) -> dict:
                 if not msg_data or not msg_data[0]:
                     continue
 
-                raw     = msg_data[0][1]
-                msg     = email.message_from_bytes(raw)
-                body    = _extract_body(msg)
-                full    = body.lower()
+                raw = msg_data[0][1]
+                msg = email.message_from_bytes(raw)
+                body = _extract_body(msg)
+                full = body.lower()
 
-                # Must be FamePay related
+                # Must be FamPay related
                 is_fampay = any(kw.lower() in full for kw in FAMPAY_KEYWORDS)
                 if not is_fampay:
                     continue
@@ -94,20 +92,22 @@ def _sync_verify(expected_amount: float, timeout_minutes: int = 15) -> dict:
                 if abs(amount - expected_amount) <= 0.01:
                     utr = _extract_utr(body)
                     mail.logout()
+                    logger.info(f"✅ Payment verified: ₹{amount} | UTR: {utr}")
                     return {
                         "verified": True,
-                        "amount":   amount,
-                        "utr":      utr,
-                        "message":  "✅ Payment verified!"
+                        "amount": amount,
+                        "utr": utr,
+                        "message": "✅ Payment verified!"
                     }
 
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error processing email: {e}")
                 continue
 
         mail.logout()
         return {
             "verified": False,
-            "message": f"₹{expected_amount:.2f} ka payment email nahi mila"
+            "message": f"❌ ₹{expected_amount:.2f} ka payment email nahi mila"
         }
 
     except imaplib.IMAP4.error as e:
@@ -117,9 +117,10 @@ def _sync_verify(expected_amount: float, timeout_minutes: int = 15) -> dict:
                 "verified": False,
                 "message": "❌ Gmail login failed — App Password check karo (spaces hata do)"
             }
-        return {"verified": False, "message": f"Gmail error: {err}"}
+        return {"verified": False, "message": f"❌ Gmail error: {err}"}
     except Exception as e:
-        return {"verified": False, "message": f"Error: {str(e)}"}
+        logger.error(f"Unexpected error: {e}")
+        return {"verified": False, "message": f"❌ Error: {str(e)}"}
 
 
 def _extract_body(msg) -> str:
@@ -181,12 +182,8 @@ def _extract_utr(text: str) -> str:
     return "N/A"
 
 
-# ── Async wrapper ──────────────────────────────────────────────────────────────
-
+# ── ASYNC WRAPPER ──────────────────────────────────────────────────
 async def verify_payment(expected_amount: float, timeout_minutes: int = 15) -> dict:
-    """
-    Async wrapper — runs IMAP check in thread pool so bot doesn't freeze.
-    """
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
         None,
@@ -195,10 +192,8 @@ async def verify_payment(expected_amount: float, timeout_minutes: int = 15) -> d
     return result
 
 
-# ── Test function ──────────────────────────────────────────────────────────────
-
+# ── TEST CONNECTION ────────────────────────────────────────────────
 async def test_connection() -> dict:
-    """Test Gmail connection without checking any payment."""
     if not GMAIL_USER or not GMAIL_PASSWORD:
         return {"ok": False, "message": "GMAIL_USER or GMAIL_APP_PASSWORD not set"}
     try:
