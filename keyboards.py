@@ -3,8 +3,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton
 )
 
-_DEV      = "@EVILTALKS"
-_DEV_LINK = "https://t.me/EVILTALKS"
+_DEV      = "@BOTMAKERGARVIT"
+_DEV_LINK = "https://t.me/BOTMAKERGARVIT"
 
 
 def user_main_kb():
