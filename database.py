@@ -1,5 +1,4 @@
-from __future__ import annotations  # <-- YE LINE DAAL (type annotations safe)
-
+from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -7,7 +6,7 @@ from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, Boo
 from datetime import datetime
 from config import DATABASE_URL
 
-# ---------- ENGINE SETUP ----------
+# ---------- ENGINE ----------
 if "postgresql" in DATABASE_URL:
     if "+" not in DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
@@ -82,12 +81,13 @@ async def get_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
 
-# ---------- CRUD HELPERS ----------
+# ---------- CRUD ----------
 async def get_user_by_tg_id(tg_id: int, db: AsyncSession):
     result = await db.execute(select(User).where(User.tg_id == tg_id))
     return result.scalar_one_or_none()
 
-async def create_user(tg_id: int, username: str = None, first_name: str = None, db: AsyncSession):
+# ✅ FIXED FUNCTION (db pehle, optional baad mein)
+async def create_user(tg_id: int, db: AsyncSession, username: str = None, first_name: str = None):
     user = User(tg_id=tg_id, username=username, first_name=first_name)
     db.add(user)
     await db.commit()
