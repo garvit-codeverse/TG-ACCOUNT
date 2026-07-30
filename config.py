@@ -1,71 +1,47 @@
-# config.py – DEVILS WILL RISE EDITION 🔥
 import os
+from dotenv import load_dotenv
 
-# ============================================
-# 🔥 BOT CONFIG – RAILWAY VARIABLES
-# ============================================
+load_dotenv()
 
-BOT_TOKEN        = os.getenv("BOT_TOKEN", "8746962237:AAESKxN7MN3Tb_UnvaPTKfJWaBzeeZWB0P0")
-ADMIN_IDS        = list(map(int, os.getenv("ADMIN_IDS", "5416091579").split(",")))
-ADMIN_USERNAME   = os.getenv("ADMIN_USERNAME", "@BOTMAKERGARVIT")
-LOG_CHANNEL_ID   = int(os.getenv("LOG_CHANNEL_ID", "-1003589850886"))
-LOG_CHANNEL_LINK = os.getenv("LOG_CHANNEL_LINK", "https://t.me/indsocialhub")
-SUPPORT_GROUP    = os.getenv("SUPPORT_GROUP", "@indsocialhub")
+# ---------- BOT CREDENTIALS ----------
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_ID = os.getenv("API_ID")
+API_HASH = os.getenv("API_HASH")
 
-# UPI CONFIG
-UPI_ID           = os.getenv("UPI_ID", "imvishal739@fam")
-UPI_NAME         = os.getenv("UPI_NAME", "VISHAL KUMAR")
+# ---------- DATABASE ----------
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///data.db")
 
-# TELEGRAM API
-API_ID           = int(os.getenv("API_ID", "36772021"))
-API_HASH         = os.getenv("API_HASH", "9f0cdb1047c9042567a40ee221df330f")
+# ---------- ADMIN ----------
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
 
-# DATABASE
-DATABASE_URL     = os.getenv("DATABASE_URL", "bot.db")
+# ---------- PAYMENT ----------
+UPI_ID = os.getenv("UPI_ID")
 
-# BOT NAME
-BOT_NAME         = os.getenv("BOT_NAME", "GARVIT AccountBot")
+# ---------- GMAIL (for FamPay auto-payment) ----------
+GMAIL_EMAIL = os.getenv("GMAIL_EMAIL")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
-# GMAIL CONFIG
-GMAIL_USER       = os.getenv("GMAIL_USER", "").strip()
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip().replace(" ", "")
-
-GMAIL_AVAILABLE = bool(GMAIL_USER and GMAIL_APP_PASSWORD)
-
-# ============================================
-# 🔥 CHECK_CONFIG FUNCTION – YEH MISSING THA
-# ============================================
+# ---------- CONFIG VALIDATION ----------
 def check_config():
-    """Check if all required config variables are set"""
-    errors = []
-    
+    missing = []
     if not BOT_TOKEN:
-        errors.append("❌ BOT_TOKEN missing")
-    
-    if not ADMIN_IDS or ADMIN_IDS == [0]:
-        errors.append("❌ ADMIN_IDS missing")
-    
+        missing.append("BOT_TOKEN","8746962237:AAESKxN7MN3Tb_UnvaPTKfJWaBzeeZWB0P0")
+    if not API_ID:
+        missing.append("API_ID","36772021")
+    if not API_HASH:
+        missing.append("API_HASH","9f0cdb1047c9042567a40ee221df330f")
+    if not ADMIN_IDS:
+        missing.append("ADMIN_IDS","5416091579")
     if not UPI_ID:
-        errors.append("❌ UPI_ID missing")
+        missing.append("UPI_ID","imvishal739@fam")
+    if not GMAIL_EMAIL:
+        missing.append("GMAIL_EMAIL")
+    if not GMAIL_APP_PASSWORD:
+        missing.append("GMAIL_APP_PASSWORD")
     
-    if errors:
-        print("\n".join(errors))
-        return False
-    
-    print(f"""
-💀 DEVILS WILL RISE – CONFIG LOADED 💀
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤖 Bot: {BOT_NAME}
-👑 Admins: {ADMIN_IDS}
-📢 Channel: {LOG_CHANNEL_LINK}
-💳 UPI: {UPI_ID}
-📧 Gmail: {'✅ CONNECTED' if GMAIL_AVAILABLE else '❌ Not Set'}
-📦 Database: {DATABASE_URL}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-""")
-    return True
-
-
-# ── FOR DEBUGGING ──────────────────────────────────────────────────
-if __name__ == "__main__":
-    check_config()
+    if missing:
+        raise EnvironmentError(
+            f"❌ Missing env vars: {', '.join(missing)}\n"
+            "Please set them in .env file"
+        )
+    print("✅ All configurations loaded successfully!")
