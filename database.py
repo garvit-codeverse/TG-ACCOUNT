@@ -1,400 +1,405 @@
-import aiosqlite
-import datetime
-import uuid
-from config import DATABASE_URL
+# database.py – DEVILS WILL RISE EDITION 🔥
+import sqlite3
+import json
+from datetime import datetime
+import os
+import logging
 
-DB = DATABASE_URL
+logger = logging.getLogger(__name__)
 
+DB_PATH = os.getenv("DATABASE_URL", "bot.db")
 
-def _id():
-    return str(uuid.uuid4())
+def get_conn():
+    return sqlite3.connect(DB_PATH)
 
-
-async def init_db():
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS accounts (
-                id           TEXT PRIMARY KEY,
-                number       TEXT NOT NULL,
-                password     TEXT DEFAULT '',
-                twofa        TEXT DEFAULT '',
-                session_str  TEXT DEFAULT '',
-                country      TEXT DEFAULT 'India',
-                country_flag TEXT DEFAULT '🇮🇳',
-                price        REAL NOT NULL,
-                description  TEXT DEFAULT '',
-                status       TEXT DEFAULT 'available',
-                added_at     TEXT NOT NULL,
-                sold_at      TEXT DEFAULT NULL,
-                sold_to      INTEGER DEFAULT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                id           TEXT PRIMARY KEY,
-                user_id      INTEGER NOT NULL,
-                username     TEXT DEFAULT '',
-                full_name    TEXT DEFAULT '',
-                account_id   TEXT NOT NULL,
-                amount       REAL NOT NULL,
-                screenshot   TEXT DEFAULT '',
-                status       TEXT DEFAULT 'pending',
-                created_at   TEXT NOT NULL,
-                approved_at  TEXT DEFAULT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id      INTEGER PRIMARY KEY,
-                username     TEXT DEFAULT '',
-                full_name    TEXT DEFAULT '',
-                joined_at    TEXT NOT NULL,
-                total_spent  REAL DEFAULT 0,
-                total_orders INTEGER DEFAULT 0,
-                is_banned    INTEGER DEFAULT 0,
-                ban_reason   TEXT DEFAULT '',
-                balance      REAL DEFAULT 0
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS otp_sessions (
-                id           TEXT PRIMARY KEY,
-                order_id     TEXT NOT NULL,
-                user_id      INTEGER NOT NULL,
-                account_id   TEXT NOT NULL,
-                otp_code     TEXT DEFAULT '',
-                status       TEXT DEFAULT 'waiting',
-                created_at   TEXT NOT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS deposits (
-                id           TEXT PRIMARY KEY,
-                user_id      INTEGER NOT NULL,
-                username     TEXT DEFAULT '',
-                amount       REAL NOT NULL,
-                exact_amount REAL DEFAULT 0,
-                screenshot   TEXT DEFAULT '',
-                status       TEXT DEFAULT 'pending',
-                created_at   TEXT NOT NULL,
-                approved_at  TEXT DEFAULT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT DEFAULT ''
-            )
-        """)
-        await db.execute("INSERT OR IGNORE INTO settings VALUES ('maintenance','0')")
-        await db.execute("INSERT OR IGNORE INTO settings VALUES ('maintenance_msg','🔧 Bot is under maintenance. Please check back later!')")
-        await db.commit()
+def init_db():
+    conn = get_conn()
+    c = conn.cursor()
+    
+    # Users table
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        username TEXT,
+        full_name TEXT,
+        total_orders INTEGER DEFAULT 0,
+        total_spent REAL DEFAULT 0,
+        created_at TEXT
+    )''')
+    
+    # Accounts table
+    c.execute('''CREATE TABLE IF NOT EXISTS accounts (
+        _id TEXT PRIMARY KEY,
+        country_flag TEXT,
+        country TEXT,
+        number TEXT,
+        password TEXT,
+        email TEXT,
+        price REAL,
+        status TEXT DEFAULT 'available',
+        sold_to INTEGER DEFAULT NULL,
+        sold_at TEXT DEFAULT NULL
+    )''')
+    
+    # Orders table
+    c.execute('''CREATE TABLE IF NOT EXISTS orders (
+        _id TEXT PRIMARY KEY,
+        user_id INTEGER,
+        username TEXT,
+        full_name TEXT,
+        account_id TEXT,
+        amount REAL,
+        exact_amount REAL DEFAULT 0,
+        status TEXT DEFAULT 'pending',
+        screenshot TEXT DEFAULT NULL,
+        created_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(user_id),
+        FOREIGN KEY (account_id) REFERENCES accounts(_id)
+    )''')
+    
+    # Sessions table
+    c.execute('''CREATE TABLE IF NOT EXISTS sessions (
+        _id TEXT PRIMARY KEY,
+        order_id TEXT,
+        user_id INTEGER,
+        account_id TEXT,
+        created_at TEXT,
+        expires_at TEXT
+    )''')
+    
+    conn.commit()
+    conn.close()
+    logger.info("✅ Database initialized")
 
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 USER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
 
-async def get_setting(key):
-    async with aiosqlite.connect(DB) as db:
-        r = await (await db.execute("SELECT value FROM settings WHERE key=?", (key,))).fetchone()
-        return r[0] if r else ""
-
-async def set_setting(key, value):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (key, value))
-        await db.commit()
-
-async def is_maintenance():
-    return (await get_setting("maintenance")) == "1"
-
-async def get_maintenance_msg():
-    return await get_setting("maintenance_msg")
-
-
-# ── Accounts ──────────────────────────────────────────────────────────────────
-
-async def add_account(number, price, country, country_flag,
-                      password="", twofa="", session_str="", description=""):
-    now = datetime.datetime.now().isoformat()
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (_id(), number, password, twofa, session_str,
-             country, country_flag, price, description, "available", now, None, None)
-        )
-        await db.commit()
-
-async def get_available_accounts():
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM accounts WHERE status='available' ORDER BY country") as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def get_available_by_country(country):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM accounts WHERE status='available' AND country=?", (country,)) as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def get_country_stock():
-    async with aiosqlite.connect(DB) as db:
-        async with db.execute(
-            "SELECT country, country_flag, price, COUNT(*) FROM accounts WHERE status='available' GROUP BY country ORDER BY country"
-        ) as c:
-            return [{"country": r[0], "flag": r[1], "price": r[2], "count": r[3]} for r in await c.fetchall()]
-
-async def get_account(account_id):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM accounts WHERE id=?", (account_id,)) as c:
-            r = await c.fetchone()
-            return dict(r) if r else None
-
-async def get_all_accounts():
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM accounts ORDER BY status, added_at DESC") as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def mark_account_sold(account_id, user_id):
-    now = datetime.datetime.now().isoformat()
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE accounts SET status='sold',sold_at=?,sold_to=? WHERE id=?", (now, user_id, account_id))
-        await db.commit()
-
-async def delete_account(account_id):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("DELETE FROM accounts WHERE id=?", (account_id,))
-        await db.commit()
-
-async def update_account(account_id, **kwargs):
-    allowed = ["price","password","twofa","session_str","description","country","country_flag"]
-    sets = ", ".join(f"{k}=?" for k in kwargs if k in allowed)
-    vals = [v for k,v in kwargs.items() if k in allowed]
-    if not sets:
-        return
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(f"UPDATE accounts SET {sets} WHERE id=?", (*vals, account_id))
-        await db.commit()
-
-
-# ── Orders ────────────────────────────────────────────────────────────────────
-
-async def create_order(user_id, username, full_name, account_id, amount):
-    now = datetime.datetime.now().isoformat()
-    oid = _id()
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (oid, user_id, username, full_name, account_id, amount, "", "pending", now, None)
-        )
-        await db.commit()
-    return oid
-
-async def get_order(order_id):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM orders WHERE id=?", (order_id,)) as c:
-            r = await c.fetchone()
-            return dict(r) if r else None
-
-async def get_pending_orders():
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM orders WHERE status='pending' ORDER BY created_at DESC") as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def get_all_orders(limit=50):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM orders ORDER BY created_at DESC LIMIT ?", (limit,)) as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def get_user_orders(user_id):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC", (user_id,)) as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def approve_order(order_id):
-    now = datetime.datetime.now().isoformat()
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE orders SET status='approved',approved_at=? WHERE id=?", (now, order_id))
-        await db.commit()
-
-async def reject_order(order_id):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE orders SET status='rejected' WHERE id=?", (order_id,))
-        await db.commit()
-
-async def set_order_screenshot(order_id, file_id):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE orders SET screenshot=? WHERE id=?", (file_id, order_id))
-        await db.commit()
-
-
-# ── Users ─────────────────────────────────────────────────────────────────────
-
-async def upsert_user(user_id, username, full_name):
-    now = datetime.datetime.now().isoformat()
-    async with aiosqlite.connect(DB) as db:
-        r = await (await db.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))).fetchone()
-        if not r:
-            await db.execute(
-                "INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?)",
-                (user_id, username, full_name, now, 0, 0, 0, "", 0)
-            )
-        else:
-            await db.execute("UPDATE users SET username=?,full_name=? WHERE user_id=?", (username, full_name, user_id))
-        await db.commit()
+async def create_user(user_id, username, full_name):
+    """Create new user if not exists"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''INSERT OR IGNORE INTO users (user_id, username, full_name, created_at)
+                 VALUES (?, ?, ?, ?)''', (user_id, username, full_name, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ User created: {user_id}")
 
 async def get_user(user_id):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM users WHERE user_id=?", (user_id,)) as c:
-            r = await c.fetchone()
-            return dict(r) if r else None
-
-async def get_all_users():
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM users ORDER BY joined_at DESC") as c:
-            return [dict(r) for r in await c.fetchall()]
+    """Get user by ID"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {
+            "user_id": row[0],
+            "username": row[1],
+            "full_name": row[2],
+            "total_orders": row[3],
+            "total_spent": row[4],
+            "created_at": row[5]
+        }
+    return None
 
 async def update_user_stats(user_id, amount):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE users SET total_spent=total_spent+?,total_orders=total_orders+1 WHERE user_id=?", (amount, user_id))
-        await db.commit()
-
-async def ban_user(user_id, reason="No reason provided"):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE users SET is_banned=1,ban_reason=? WHERE user_id=?", (reason, user_id))
-        await db.commit()
-
-async def unban_user(user_id):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE users SET is_banned=0,ban_reason='' WHERE user_id=?", (user_id,))
-        await db.commit()
-
-async def is_banned(user_id):
-    async with aiosqlite.connect(DB) as db:
-        r = await (await db.execute("SELECT is_banned FROM users WHERE user_id=?", (user_id,))).fetchone()
-        return bool(r and r[0])
-
-async def get_balance(user_id):
-    async with aiosqlite.connect(DB) as db:
-        r = await (await db.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))).fetchone()
-        return float(r[0]) if r else 0.0
-
-async def add_balance(user_id, amount):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE users SET balance=balance+? WHERE user_id=?", (amount, user_id))
-        await db.commit()
-
-async def deduct_balance(user_id, amount):
-    async with aiosqlite.connect(DB) as db:
-        r = await (await db.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))).fetchone()
-        if not r or float(r[0]) < amount:
-            return False
-        await db.execute("UPDATE users SET balance=balance-? WHERE user_id=?", (amount, user_id))
-        await db.commit()
-        return True
+    """Update user total orders and spent"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''UPDATE users 
+                 SET total_orders = total_orders + 1,
+                     total_spent = total_spent + ?
+                 WHERE user_id = ?''', (amount, user_id))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ User stats updated: {user_id} +₹{amount}")
 
 
-# ── Deposits ──────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 ACCOUNT FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
 
-async def create_deposit(user_id, username, amount, exact_amount):
-    now = datetime.datetime.now().isoformat()
-    did = _id()
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT INTO deposits VALUES (?,?,?,?,?,?,?,?,?)",
-            (did, user_id, username, amount, exact_amount, "", "pending", now, None)
-        )
-        await db.commit()
-    return did
+async def add_account(country_flag, country, number, password, price, email=""):
+    """Add new account to database"""
+    import uuid
+    _id = f"acc_{uuid.uuid4().hex[:8]}"
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''INSERT INTO accounts (_id, country_flag, country, number, password, email, price)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''', (_id, country_flag, country, number, password, email, price))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Account added: {_id}")
+    return _id
 
-async def get_deposit(deposit_id):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM deposits WHERE id=?", (deposit_id,)) as c:
-            r = await c.fetchone()
-            return dict(r) if r else None
+async def get_account(account_id):
+    """Get account by ID"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM accounts WHERE _id = ?', (account_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {
+            "_id": row[0],
+            "country_flag": row[1],
+            "country": row[2],
+            "number": row[3],
+            "password": row[4],
+            "email": row[5],
+            "price": row[6],
+            "status": row[7],
+            "sold_to": row[8],
+            "sold_at": row[9]
+        }
+    return None
 
-async def set_deposit_screenshot(deposit_id, file_id):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE deposits SET screenshot=? WHERE id=?", (file_id, deposit_id))
-        await db.commit()
+async def get_available_accounts():
+    """Get all available accounts"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM accounts WHERE status = "available"')
+    rows = c.fetchall()
+    conn.close()
+    accounts = []
+    for row in rows:
+        accounts.append({
+            "_id": row[0],
+            "country_flag": row[1],
+            "country": row[2],
+            "number": row[3],
+            "password": row[4],
+            "email": row[5],
+            "price": row[6],
+            "status": row[7]
+        })
+    return accounts
 
-async def approve_deposit(deposit_id):
-    now = datetime.datetime.now().isoformat()
-    async with aiosqlite.connect(DB) as db:
-        r = await (await db.execute("SELECT * FROM deposits WHERE id=?", (deposit_id,))).fetchone()
-        if r:
-            await db.execute("UPDATE deposits SET status='approved',approved_at=? WHERE id=?", (now, deposit_id))
-            await db.execute("UPDATE users SET balance=balance+? WHERE user_id=?", (r[3], r[1]))
-            await db.commit()
+async def get_all_accounts():
+    """Get all accounts (for stats)"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT _id, status FROM accounts')
+    rows = c.fetchall()
+    conn.close()
+    return [{"_id": r[0], "status": r[1]} for r in rows]
 
-async def reject_deposit(deposit_id):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE deposits SET status='rejected' WHERE id=?", (deposit_id,))
-        await db.commit()
-
-async def get_pending_deposits():
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM deposits WHERE status='pending' ORDER BY created_at DESC") as c:
-            return [dict(r) for r in await c.fetchall()]
-
-async def update_deposit_exact(deposit_id, exact_amount):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE deposits SET exact_amount=? WHERE id=?", (exact_amount, deposit_id))
-        await db.commit()
-
-
-# ── Stats ─────────────────────────────────────────────────────────────────────
-
-async def get_stats():
-    async with aiosqlite.connect(DB) as db:
-        ta  = (await (await db.execute("SELECT COUNT(*) FROM accounts")).fetchone())[0]
-        av  = (await (await db.execute("SELECT COUNT(*) FROM accounts WHERE status='available'")).fetchone())[0]
-        sol = (await (await db.execute("SELECT COUNT(*) FROM accounts WHERE status='sold'")).fetchone())[0]
-        tu  = (await (await db.execute("SELECT COUNT(*) FROM users")).fetchone())[0]
-        ban = (await (await db.execute("SELECT COUNT(*) FROM users WHERE is_banned=1")).fetchone())[0]
-        po  = (await (await db.execute("SELECT COUNT(*) FROM orders WHERE status='pending'")).fetchone())[0]
-        ao  = (await (await db.execute("SELECT COUNT(*) FROM orders WHERE status='approved'")).fetchone())[0]
-        pd  = (await (await db.execute("SELECT COUNT(*) FROM deposits WHERE status='pending'")).fetchone())[0]
-        rev = (await (await db.execute("SELECT SUM(amount) FROM orders WHERE status='approved'")).fetchone())[0] or 0
-        return {"total_accounts":ta,"available":av,"sold":sol,"users":tu,"banned":ban,
-                "pending":po,"approved_orders":ao,"pending_deposits":pd,"revenue":rev}
+async def mark_account_sold(account_id, user_id):
+    """Mark account as sold"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''UPDATE accounts 
+                 SET status = "sold", sold_to = ?, sold_at = ?
+                 WHERE _id = ?''', (user_id, datetime.now().isoformat(), account_id))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Account sold: {account_id} → user {user_id}")
 
 
-# ── OTP Sessions ──────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 ORDER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+async def create_order(user_id, username, full_name, account_id, amount):
+    """Create new order"""
+    import uuid
+    _id = f"ord_{uuid.uuid4().hex[:8]}"
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''INSERT INTO orders (_id, user_id, username, full_name, account_id, amount, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''', (_id, user_id, username, full_name, account_id, amount, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Order created: {_id}")
+    return _id
+
+async def get_order(order_id):
+    """Get order by ID"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM orders WHERE _id = ?', (order_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {
+            "_id": row[0],
+            "user_id": row[1],
+            "username": row[2],
+            "full_name": row[3],
+            "account_id": row[4],
+            "amount": row[5],
+            "exact_amount": row[6],
+            "status": row[7],
+            "screenshot": row[8],
+            "created_at": row[9]
+        }
+    return None
+
+async def get_user_orders(user_id):
+    """Get all orders for a user"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC', (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    orders = []
+    for row in rows:
+        orders.append({
+            "_id": row[0],
+            "amount": row[5],
+            "status": row[7],
+            "created_at": row[9]
+        })
+    return orders
+
+async def get_pending_orders():
+    """Get all pending orders"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM orders WHERE status = "pending" ORDER BY created_at DESC')
+    rows = c.fetchall()
+    conn.close()
+    orders = []
+    for row in rows:
+        orders.append({
+            "_id": row[0],
+            "user_id": row[1],
+            "username": row[2],
+            "full_name": row[3],
+            "account_id": row[4],
+            "amount": row[5],
+            "exact_amount": row[6],
+            "status": row[7],
+            "screenshot": row[8],
+            "created_at": row[9]
+        })
+    return orders
+
+async def set_order_exact_amount(order_id, exact_amount):
+    """Set exact amount for order (after QR generation)"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('UPDATE orders SET exact_amount = ? WHERE _id = ?', (exact_amount, order_id))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Exact amount set: {order_id} → ₹{exact_amount}")
+
+async def set_order_screenshot(order_id, file_id):
+    """Save screenshot file_id to order"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('UPDATE orders SET screenshot = ? WHERE _id = ?', (file_id, order_id))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Screenshot saved: {order_id}")
+
+async def approve_order(order_id):
+    """Approve order"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('UPDATE orders SET status = "approved" WHERE _id = ?', (order_id,))
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Order approved: {order_id}")
+
+async def reject_order(order_id):
+    """Reject/cancel order"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('UPDATE orders SET status = "rejected" WHERE _id = ?', (order_id,))
+    conn.commit()
+    conn.close()
+    logger.info(f"❌ Order rejected: {order_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 SESSION FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
 
 async def create_otp_session(order_id, user_id, account_id):
-    now = datetime.datetime.now().isoformat()
-    sid = _id()
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT INTO otp_sessions VALUES (?,?,?,?,?,?,?)",
-            (sid, order_id, user_id, account_id, "", "waiting", now)
-        )
-        await db.commit()
-    return sid
+    """Create OTP session for reveal number"""
+    import uuid
+    _id = f"sess_{uuid.uuid4().hex[:8]}"
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('''INSERT INTO sessions (_id, order_id, user_id, account_id, created_at, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?)''', (_id, order_id, user_id, account_id, 
+                 datetime.now().isoformat(), 
+                 (datetime.now().timestamp() + 300)))  # 5 min expiry
+    conn.commit()
+    conn.close()
+    logger.info(f"✅ Session created: {_id}")
+    return _id
 
-async def get_otp_session(session_id):
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM otp_sessions WHERE id=?", (session_id,)) as c:
-            r = await c.fetchone()
-            return dict(r) if r else None
+async def get_session(session_id):
+    """Get session by ID"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT * FROM sessions WHERE _id = ?', (session_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {
+            "_id": row[0],
+            "order_id": row[1],
+            "user_id": row[2],
+            "account_id": row[3],
+            "created_at": row[4],
+            "expires_at": row[5]
+        }
+    return None
 
-async def deliver_otp(session_id, otp_code):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE otp_sessions SET otp_code=?,status='delivered' WHERE id=?", (otp_code, session_id))
-        await db.commit()
 
-async def get_waiting_otp_sessions():
-    async with aiosqlite.connect(DB) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM otp_sessions WHERE status='waiting' ORDER BY created_at DESC") as c:
-            return [dict(r) for r in await c.fetchall()]
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 STATS FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+async def get_stats():
+    """Get bot statistics"""
+    conn = get_conn()
+    c = conn.cursor()
+    
+    c.execute('SELECT COUNT(*) FROM users')
+    users = c.fetchone()[0]
+    
+    c.execute('SELECT COUNT(*) FROM orders')
+    orders = c.fetchone()[0]
+    
+    c.execute('SELECT COUNT(*) FROM orders WHERE status = "approved"')
+    approved = c.fetchone()[0]
+    
+    c.execute('SELECT COUNT(*) FROM orders WHERE status = "pending"')
+    pending = c.fetchone()[0]
+    
+    c.execute('SELECT SUM(amount) FROM orders WHERE status = "approved"')
+    revenue = c.fetchone()[0] or 0.0
+    
+    conn.close()
+    return {
+        "users": users,
+        "orders": orders,
+        "approved": approved,
+        "pending": pending,
+        "revenue": revenue
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 DB CHECKER OBJECT (for payment_checker.py)
+# ═══════════════════════════════════════════════════════════════════
+
+class DatabaseChecker:
+    @staticmethod
+    async def check_connection():
+        """Check database connection"""
+        try:
+            conn = get_conn()
+            c = conn.cursor()
+            c.execute('SELECT 1')
+            conn.close()
+            return {"ok": True, "message": "✅ Database connected"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
+db_checker = DatabaseChecker()
