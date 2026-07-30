@@ -4,7 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
-from config import BOT_TOKEN, ADMIN_IDS, check_config
+from config import BOT_TOKEN, ADMIN_IDS
 import database as db
 
 logging.basicConfig(level=logging.INFO)
