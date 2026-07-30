@@ -1,7 +1,9 @@
+from __future__ import annotations  # <-- YE LINE DAAL (type annotations safe)
+
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, Boolean, Text, select  # <--- SELECT ADDED
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, Boolean, Text, select
 from datetime import datetime
 from config import DATABASE_URL
 
