@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Static (never change from bot) ────────────────────────────────────────────
-BOT_TOKEN    = os.getenv("BOT_TOKEN", "8746962237:AAE2UTwDhsnlbB_U8HQI9QJ0VWX0_HmDtok")
+BOT_TOKEN    = os.getenv("BOT_TOKEN", "8746962237:AAESKxN7MN3Tb_UnvaPTKfJWaBzeeZWB0P0")
 ADMIN_IDS    = list(map(int, os.getenv("ADMIN_IDS", "5416091579").split(",")))
 DATABASE_URL = os.getenv("DATABASE_URL", "bot.db")
 API_ID       = int(os.getenv("API_ID", "36772021"))
