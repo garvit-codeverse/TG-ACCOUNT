@@ -4,7 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
-from config import BOT_TOKEN, ADMIN_IDS
+from config import BOT_TOKEN, ADMIN_IDS, check_config
 import database as db
 
 logging.basicConfig(level=logging.INFO)
@@ -62,5 +62,7 @@ async def main():
     print("💀 DEVILS WILL RISE – BOT STARTED 💀")
     await dp.start_polling(bot)
 
+if __name__ == "__main__":
+    asyncio.run(main())
 if __name__ == "__main__":
     asyncio.run(main())
