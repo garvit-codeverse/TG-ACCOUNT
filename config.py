@@ -15,7 +15,7 @@ API_ID           = int(os.getenv("API_ID", "36772021"))
 API_HASH         = os.getenv("API_HASH", "9f0cdb1047c9042567a40ee221df330f")
 DATABASE_URL     = os.getenv("DATABASE_URL", "bot.db")
 BOT_NAME         = "GARVIT AccountBot"
-
+GMAIL_AVAILABLE = "itzvishal739@gmail.com"
 FORCE_JOIN_RAW = os.getenv("FORCE_JOIN_CHANNELS", "")
 
 def get_force_join_channels():
