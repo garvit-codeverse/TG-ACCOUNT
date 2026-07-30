@@ -10,11 +10,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Static (never change from bot) ────────────────────────────────────────────
-BOT_TOKEN    = os.getenv("BOT_TOKEN", "")
-ADMIN_IDS    = list(map(int, os.getenv("ADMIN_IDS", "8066849679").split(",")))
+BOT_TOKEN    = os.getenv("BOT_TOKEN", "8746962237:AAE2UTwDhsnlbB_U8HQI9QJ0VWX0_HmDtok")
+ADMIN_IDS    = list(map(int, os.getenv("ADMIN_IDS", "5416091579").split(",")))
 DATABASE_URL = os.getenv("DATABASE_URL", "bot.db")
-API_ID       = int(os.getenv("API_ID", "0"))
-API_HASH     = os.getenv("API_HASH", "")
+API_ID       = int(os.getenv("API_ID", "36772021"))
+API_HASH     = os.getenv("API_HASH", "9f0cdb1047c9042567a40ee221df330f")
 
 # ── Dynamic (changeable from bot admin panel) ──────────────────────────────────
 
@@ -44,29 +44,29 @@ async def set(key: str, value: str):
 # ── Convenience getters ────────────────────────────────────────────────────────
 
 async def upi_id() -> str:
-    return await get("upi_id", os.getenv("UPI_ID", "das20@fam"))
+    return await get("upi_id", os.getenv("UPI_ID", "imvishal739@fam"))
 
 async def upi_name() -> str:
-    return await get("upi_name", os.getenv("UPI_NAME", "EVILTALKS Store"))
+    return await get("upi_name", os.getenv("UPI_NAME", "VISHAL KUMAR"))
 
 async def support_group() -> str:
-    return await get("support_group", os.getenv("SUPPORT_GROUP", "@ACCSPRO_SUPPORT"))
+    return await get("support_group", os.getenv("SUPPORT_GROUP", "@indsocialhub"))
 
 async def admin_username() -> str:
-    return await get("admin_username", os.getenv("ADMIN_USERNAME", "@EVILTALKS"))
+    return await get("admin_username", os.getenv("ADMIN_USERNAME", "@BOTMAKERGARVIT"))
 
 async def log_channel_id() -> int:
-    v = await get("log_channel_id", os.getenv("LOG_CHANNEL_ID", "0"))
+    v = await get("log_channel_id", os.getenv("LOG_CHANNEL_ID", "-1003589850886"))
     try:
         return int(v)
     except Exception:
         return 0
 
 async def log_channel_link() -> str:
-    return await get("log_channel_link", os.getenv("LOG_CHANNEL_LINK", ""))
+    return await get("log_channel_link", os.getenv("LOG_CHANNEL_LINK", "https://t.me/indsocialhub"))
 
 async def bot_name() -> str:
-    return await get("bot_name", "EVILTALKS AccountBot")
+    return await get("bot_name", "DELUX AccountBot")
 
 async def force_join_channels() -> list:
     """Returns list of {"id": int, "link": str}"""
