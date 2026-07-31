@@ -4,7 +4,6 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN
-from database import init_db
 from handlers import user, admin, payment, otp, deposit, settings, session_manager
 
 logging.basicConfig(
